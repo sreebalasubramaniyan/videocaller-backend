@@ -36,6 +36,10 @@ const roomSchema = new mongoose.Schema({
     type: Boolean,
     default: true,
   },
+  meetingStartTime: {
+    type: Date,
+    default: Date.now,
+  },
   createdAt: {
     type: Date,
     default: Date.now,

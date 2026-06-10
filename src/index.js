@@ -35,19 +35,20 @@ io.on('connection', (socket) => {
   console.log('User connected:', socket.id, 'auth:', socket.auth);
 
   // Join a room
-  socket.on('join-room', ({ roomId, userId }) => {
+  socket.on('join-room', ({ roomId, userId, username }) => {
     socket.join(roomId);
-    socket.data.userId = userId; // Store userId in socket data
-    console.log(`User ${userId} (socket: ${socket.id}) joined room ${roomId}`);
+    socket.data.userId = userId;
+    socket.data.username = username;
+    console.log(`User ${username} (socket: ${socket.id}) joined room ${roomId}`);
 
     // Notify all other users in the room
-    socket.to(roomId).emit('user-connected', { userId: socket.id });
+    socket.to(roomId).emit('user-connected', { userId: socket.id, username });
   });
 
   // Handle WebRTC signaling - use socket.id for identification
-  socket.on('offer', ({ to, offer }) => {
+  socket.on('offer', ({ to, offer, username }) => {
     console.log('Sending offer to:', to);
-    io.to(to).emit('offer', { from: socket.id, offer });
+    io.to(to).emit('offer', { from: socket.id, offer, username });
   });
 
   socket.on('answer', ({ to, answer }) => {

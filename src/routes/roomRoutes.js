@@ -139,6 +139,7 @@ router.get('/:roomId', protect, async (req, res) => {
         createdBy: room.createdBy,
         participants: room.participants,
         isActive: room.isActive,
+        meetingStartTime: room.meetingStartTime,
         createdAt: room.createdAt,
       },
     });
