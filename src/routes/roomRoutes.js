@@ -210,4 +210,43 @@ router.post('/leave/:roomId', protect, async (req, res) => {
   }
 });
 
+// @route   POST /api/rooms/kick/:roomId
+// @desc    Kick a participant from room (host only)
+// @access  Private
+router.post('/kick/:roomId', protect, async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const room = await Room.findOne({ roomId: req.params.roomId });
+
+    if (!room) {
+      return res.status(404).json({ message: 'Room not found' });
+    }
+
+    // Check if user is the creator/host
+    if (room.createdBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Only host can kick participants' });
+    }
+
+    // Cannot kick yourself
+    if (userId === req.user._id.toString()) {
+      return res.status(400).json({ message: 'Cannot kick yourself' });
+    }
+
+    // Remove user from participants
+    room.participants = room.participants.filter(
+      (p) => p.toString() !== userId
+    );
+
+    await room.save();
+
+    res.json({
+      success: true,
+      message: 'User kicked successfully',
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 module.exports = router;

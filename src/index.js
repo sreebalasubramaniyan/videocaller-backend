@@ -76,6 +76,37 @@ io.on('connection', (socket) => {
     socket.leave(roomId);
     socket.to(roomId).emit('user-disconnected', { userId: socket.id });
   });
+
+  // Host kick user
+  socket.on('kick-user', ({ roomId, userId }) => {
+    io.to(userId).emit('kicked', { roomId });
+    socket.to(roomId).emit('user-kicked', { userId });
+  });
+
+  // Host mute/unmute participant
+  socket.on('mute-user', ({ roomId, userId, isMuted }) => {
+    io.to(userId).emit('remote-mute', { isMuted });
+  });
+
+  // Host disable/enable participant video
+  socket.on('disable-video', ({ roomId, userId, isDisabled }) => {
+    io.to(userId).emit('remote-disable-video', { isDisabled });
+  });
+
+  // Get room participants
+  socket.on('get-participants', ({ roomId }) => {
+    const room = io.sockets.adapter.rooms.get(roomId);
+    if (room) {
+      const participants = Array.from(room).map(socketId => {
+        const socket = io.sockets.sockets.get(socketId);
+        return {
+          socketId,
+          userId: socket?.data?.userId
+        };
+      });
+      io.to(socket.id).emit('participants-list', { participants });
+    }
+  });
 });
 
 // Start server
