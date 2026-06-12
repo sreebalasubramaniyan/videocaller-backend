@@ -23,6 +23,20 @@ router.post('/', protect, async (req, res) => {
       participants: [req.user._id],
     });
 
+    // Emit 'room-created' to all sockets
+    const io = req.app.get('socketio');
+    if (io) {
+      io.emit('room-created', {
+        id: room._id,
+        roomId: room.roomId,
+        roomName: room.roomName,
+        createdBy: req.user.username,
+        participantCount: room.participants.length,
+        isActive: room.isActive,
+        createdAt: room.createdAt,
+      });
+    }
+
     res.status(201).json({
       success: true,
       room: {
@@ -100,6 +114,15 @@ router.post('/join', protect, async (req, res) => {
       await room.save();
     }
 
+    // Emit 'room-updated' to all sockets
+    const io = req.app.get('socketio');
+    if (io) {
+      io.emit('room-updated', {
+        roomId: room.roomId,
+        participantCount: room.participants.length,
+      });
+    }
+
     res.json({
       success: true,
       room: {
@@ -168,6 +191,12 @@ router.delete('/:roomId', protect, async (req, res) => {
     room.isActive = false;
     await room.save();
 
+    // Emit 'room-ended' to all sockets
+    const io = req.app.get('socketio');
+    if (io) {
+      io.emit('room-ended', { roomId: room.roomId });
+    }
+
     res.json({
       success: true,
       message: 'Room closed successfully',
@@ -200,6 +229,19 @@ router.post('/leave/:roomId', protect, async (req, res) => {
     }
 
     await room.save();
+
+    // Emit room list updates
+    const io = req.app.get('socketio');
+    if (io) {
+      if (room.isActive) {
+        io.emit('room-updated', {
+          roomId: room.roomId,
+          participantCount: room.participants.length,
+        });
+      } else {
+        io.emit('room-ended', { roomId: room.roomId });
+      }
+    }
 
     res.json({
       success: true,
@@ -239,6 +281,15 @@ router.post('/kick/:roomId', protect, async (req, res) => {
     );
 
     await room.save();
+
+    // Emit 'room-updated' to all sockets
+    const io = req.app.get('socketio');
+    if (io) {
+      io.emit('room-updated', {
+        roomId: room.roomId,
+        participantCount: room.participants.length,
+      });
+    }
 
     res.json({
       success: true,

@@ -26,6 +26,8 @@ app.use(express.json());
 // Connect to Database
 connectDB();
 
+app.set('socketio', io);
+
 // Routes
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/rooms', require('./routes/roomRoutes'));
@@ -41,19 +43,44 @@ io.on('connection', (socket) => {
     socket.data.username = username;
     console.log(`User ${username} (socket: ${socket.id}) joined room ${roomId}`);
 
+    // Send the list of current participants to the joining user
+    const room = io.sockets.adapter.rooms.get(roomId);
+    const participants = [];
+    if (room) {
+      room.forEach(socketId => {
+        const clientSocket = io.sockets.sockets.get(socketId);
+        if (clientSocket) {
+          participants.push({
+            socketId,
+            userId: clientSocket.data.userId,
+            username: clientSocket.data.username
+          });
+        }
+      });
+    }
+    socket.emit('participants-list', { participants });
+
     // Notify all other users in the room
     socket.to(roomId).emit('user-connected', { userId: socket.id, username });
   });
 
   // Handle WebRTC signaling - use socket.id for identification
-  socket.on('offer', ({ to, offer, username }) => {
+  socket.on('offer', ({ to, offer }) => {
     console.log('Sending offer to:', to);
-    io.to(to).emit('offer', { from: socket.id, offer, username });
+    io.to(to).emit('offer', { 
+      from: socket.id, 
+      offer, 
+      username: socket.data.username 
+    });
   });
 
   socket.on('answer', ({ to, answer }) => {
     console.log('Sending answer to:', to);
-    io.to(to).emit('answer', { from: socket.id, answer });
+    io.to(to).emit('answer', { 
+      from: socket.id, 
+      answer, 
+      username: socket.data.username 
+    });
   });
 
   socket.on('ice-candidate', ({ to, candidate }) => {
@@ -80,18 +107,48 @@ io.on('connection', (socket) => {
 
   // Host kick user
   socket.on('kick-user', ({ roomId, userId }) => {
-    io.to(userId).emit('kicked', { roomId });
+    io.to(userId).emit('kicked', { roomId, reason: 'kicked' });
     socket.to(roomId).emit('user-kicked', { userId });
+  });
+
+  // Host ends the meeting
+  socket.on('end-meeting', ({ roomId }) => {
+    console.log(`Meeting ended by host in room: ${roomId}`);
+    // Notify all participants that the meeting has ended
+    socket.to(roomId).emit('kicked', { roomId, reason: 'ended' });
+    
+    // Force all client sockets in this room to leave
+    const room = io.sockets.adapter.rooms.get(roomId);
+    if (room) {
+      const socketIds = Array.from(room);
+      socketIds.forEach(socketId => {
+        const clientSocket = io.sockets.sockets.get(socketId);
+        if (clientSocket) {
+          clientSocket.leave(roomId);
+        }
+      });
+    }
+
+    // Broadcast global room ended to update dashboards
+    io.emit('room-ended', { roomId });
   });
 
   // Host mute/unmute participant
   socket.on('mute-user', ({ roomId, userId, isMuted }) => {
-    io.to(userId).emit('remote-mute', { isMuted });
+    if (userId === 'all') {
+      socket.to(roomId).emit('remote-mute', { isMuted });
+    } else {
+      io.to(userId).emit('remote-mute', { isMuted });
+    }
   });
 
   // Host disable/enable participant video
   socket.on('disable-video', ({ roomId, userId, isDisabled }) => {
-    io.to(userId).emit('remote-disable-video', { isDisabled });
+    if (userId === 'all') {
+      socket.to(roomId).emit('remote-disable-video', { isDisabled });
+    } else {
+      io.to(userId).emit('remote-disable-video', { isDisabled });
+    }
   });
 
   // Send chat message
