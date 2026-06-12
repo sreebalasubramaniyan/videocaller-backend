@@ -94,6 +94,16 @@ io.on('connection', (socket) => {
     io.to(userId).emit('remote-disable-video', { isDisabled });
   });
 
+  // Send chat message
+  socket.on('send-message', ({ roomId, message }) => {
+    socket.to(roomId).emit('chat-message', {
+      sender: socket.data.username || 'Anonymous',
+      senderId: socket.id,
+      message,
+      timestamp: new Date()
+    });
+  });
+
   // Get room participants
   socket.on('get-participants', ({ roomId }) => {
     const room = io.sockets.adapter.rooms.get(roomId);
